@@ -13,16 +13,13 @@ namespace PatientJournalSystem.Controllers;
 [Tags("Authentication")]
 public class AuthController : ControllerBase
 {
-    private const int MaxFailedLoginAttempts = 5;
-    private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
-
     private readonly AppDbContext _db;
-    private readonly TokenService _tokenService;
+    private readonly AuthService _authService;
 
-    public AuthController(AppDbContext db, TokenService tokenService)
+    public AuthController(AppDbContext db, AuthService authService)
     {
         _db = db;
-        _tokenService = tokenService;
+        _authService = authService;
     }
 
     /// <summary>Login and receive a JWT token</summary>
@@ -40,37 +37,12 @@ public class AuthController : ControllerBase
     [ProducesResponseType(429)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+        var result = await _authService.LoginAsync(request.Email, request.Password);
+
+        if (!result.IsSuccess)
             return Unauthorized(new { message = "Invalid email or password." });
 
-        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
-        var now = DateTime.UtcNow;
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail);
-
-        if (user?.LockedUntil > now)
-            return Unauthorized(new { message = "Invalid email or password." });
-
-        if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-        {
-            if (user != null)
-            {
-                user.FailedLoginAttempts++;
-
-                if (user.FailedLoginAttempts >= MaxFailedLoginAttempts)
-                    user.LockedUntil = now.Add(LockoutDuration);
-
-                await _db.SaveChangesAsync();
-            }
-
-            return Unauthorized(new { message = "Invalid email or password." });
-        }
-
-        user.FailedLoginAttempts = 0;
-        user.LockedUntil = null;
-        await _db.SaveChangesAsync();
-
-        var token = _tokenService.GenerateToken(user);
-        return Ok(new LoginResponse(token, user.Role.ToString(), user.FullName));
+        return Ok(result.Response);
     }
 
     /// <summary>Register a new user (Admin only in production - open for demo)</summary>
