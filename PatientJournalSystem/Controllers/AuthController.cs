@@ -4,6 +4,7 @@ using PatientJournalSystem.Data;
 using PatientJournalSystem.DTOs;
 using PatientJournalSystem.Models;
 using PatientJournalSystem.Services;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace PatientJournalSystem.Controllers;
 
@@ -30,8 +31,10 @@ public class AuthController : ControllerBase
     /// - admin@klinik.dk / Admin123!
     /// </remarks>
     [HttpPost("login")]
+    [EnableRateLimiting("login")]
     [ProducesResponseType(typeof(LoginResponse), 200)]
     [ProducesResponseType(401)]
+    [ProducesResponseType(429)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
