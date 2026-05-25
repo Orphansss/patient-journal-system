@@ -13,6 +13,9 @@ namespace PatientJournalSystem.Controllers;
 [Tags("Authentication")]
 public class AuthController : ControllerBase
 {
+    private const int MaxFailedLoginAttempts = 5;
+    private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
+
     private readonly AppDbContext _db;
     private readonly TokenService _tokenService;
 
@@ -37,10 +40,34 @@ public class AuthController : ControllerBase
     [ProducesResponseType(429)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+            return Unauthorized(new { message = "Invalid email or password." });
+
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        var now = DateTime.UtcNow;
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail);
+
+        if (user?.LockedUntil > now)
+            return Unauthorized(new { message = "Invalid email or password." });
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        {
+            if (user != null)
+            {
+                user.FailedLoginAttempts++;
+
+                if (user.FailedLoginAttempts >= MaxFailedLoginAttempts)
+                    user.LockedUntil = now.Add(LockoutDuration);
+
+                await _db.SaveChangesAsync();
+            }
+
             return Unauthorized(new { message = "Invalid email or password." });
+        }
+
+        user.FailedLoginAttempts = 0;
+        user.LockedUntil = null;
+        await _db.SaveChangesAsync();
 
         var token = _tokenService.GenerateToken(user);
         return Ok(new LoginResponse(token, user.Role.ToString(), user.FullName));
