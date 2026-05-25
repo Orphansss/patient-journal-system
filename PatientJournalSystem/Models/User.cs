@@ -16,6 +16,8 @@ public class User
     public string PasswordHash { get; set; } = string.Empty;
     public UserRole Role { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public int FailedLoginAttempts { get; set; }
+    public DateTime? LockedUntil { get; set; }
 
     // Navigation
     public ICollection<Journal> JournalsAsPatient { get; set; } = new List<Journal>();
