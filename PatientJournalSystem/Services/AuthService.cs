@@ -55,6 +55,28 @@ public class AuthService
 
         return AuthResult.Success(response);
     }
+
+    public async Task<RegisterResult> RegisterAsync(RegisterRequest request)
+    {
+        if (await _db.Users.AnyAsync(u => u.Email == request.Email))
+            return RegisterResult.Fail("Email already in use.");
+
+        if (!Enum.TryParse<UserRole>(request.Role, true, out var role))
+            return RegisterResult.Fail("Invalid role. Use: Patient, Doctor, Secretary, Admin.");
+
+        var user = new User
+        {
+            FullName = request.FullName,
+            Email = request.Email,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+            Role = role
+        };
+
+        _db.Users.Add(user);
+        await _db.SaveChangesAsync();
+
+        return RegisterResult.Success(user.Id);
+    }
 }
 
 public record AuthResult(bool IsSuccess, LoginResponse? Response)
@@ -62,4 +84,11 @@ public record AuthResult(bool IsSuccess, LoginResponse? Response)
     public static AuthResult Success(LoginResponse response) => new(true, response);
 
     public static AuthResult Fail() => new(false, null);
+}
+
+public record RegisterResult(bool IsSuccess, int? UserId, string? ErrorMessage)
+{
+    public static RegisterResult Success(int userId) => new(true, userId, null);
+
+    public static RegisterResult Fail(string errorMessage) => new(false, null, errorMessage);
 }
