@@ -1,0 +1,23 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+*.suo
+
+# Database - never commit the actual DB file
+*.db
+*.db-shm
+*.db-wal
+
+# Secrets - NEVER commit these
+appsettings.Production.json
+.env
+secrets.json
+
+# Keep development appsettings (has only dev keys, not production)
+!appsettings.Development.json
+
+# OS
+.DS_Store
+Thumbs.db
