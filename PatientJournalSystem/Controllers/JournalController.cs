@@ -18,18 +18,22 @@ public class JournalController : ControllerBase
     private readonly AppDbContext _db;
     private readonly EncryptionService _encryption;
     private readonly AuditService _audit;
+    private readonly CurrentUserService _currentUser;
 
-    public JournalController(AppDbContext db, EncryptionService encryption, AuditService audit)
+    public JournalController(
+    AppDbContext db,
+    EncryptionService encryption,
+    AuditService audit,
+    CurrentUserService currentUser)
     {
         _db = db;
         _encryption = encryption;
         _audit = audit;
+        _currentUser = currentUser;
     }
 
-    private int GetCurrentUserId() =>
-        int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? User.FindFirstValue(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)
-            ?? "0");
+    private async Task<int> GetCurrentUserId() =>
+    await _currentUser.GetRequiredUserIdAsync(User);
 
     private string GetCurrentRole() =>
         User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
@@ -45,7 +49,7 @@ public class JournalController : ControllerBase
     [ProducesResponseType(403)]
     public async Task<IActionResult> GetJournals()
     {
-        var userId = GetCurrentUserId();
+        var userId = await GetCurrentUserId();
         var role = GetCurrentRole();
 
         if (role == "Secretary" || role == "Admin")
@@ -85,7 +89,7 @@ public class JournalController : ControllerBase
     [ProducesResponseType(404)]
     public async Task<IActionResult> GetJournal(int id)
     {
-        var userId = GetCurrentUserId();
+        var userId = await GetCurrentUserId();
         var role = GetCurrentRole();
 
         var journal = await _db.Journals
@@ -122,7 +126,7 @@ public class JournalController : ControllerBase
     [ProducesResponseType(403)]
     public async Task<IActionResult> CreateJournal([FromBody] CreateJournalRequest request)
     {
-        var doctorId = GetCurrentUserId();
+        var doctorId = await GetCurrentUserId();
 
         if (!await HasConsent(doctorId, request.PatientId))
             return Forbid(); // No consent = no access
@@ -158,7 +162,7 @@ public class JournalController : ControllerBase
     [ProducesResponseType(404)]
     public async Task<IActionResult> UpdateJournal(int id, [FromBody] UpdateJournalRequest request)
     {
-        var doctorId = GetCurrentUserId();
+        var doctorId = await GetCurrentUserId();
 
         var journal = await _db.Journals
             .Include(j => j.Patient)
@@ -191,7 +195,7 @@ public class JournalController : ControllerBase
     [ProducesResponseType(404)]
     public async Task<IActionResult> ArchiveJournal(int id)
     {
-        var doctorId = GetCurrentUserId();
+        var doctorId = await GetCurrentUserId();
         var journal = await _db.Journals.FindAsync(id);
 
         if (journal == null) return NotFound();
