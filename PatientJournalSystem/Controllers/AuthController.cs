@@ -156,21 +156,21 @@ public class AuthController : ControllerBase
         if (!Enum.TryParse<UserRole>(request.Role, true, out var role))
             return BadRequest(new { message = "Invalid role. Use: Patient, Doctor, Secretary, Admin." });
 
+        // Ingen PasswordHash - credentials oprettes i Keycloak, ikke her.
+        // Denne endpoint opretter kun den lokale bruger til RBAC og relationer.
         var user = new User
         {
             FullName = request.FullName,
             Email = request.Email,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             Role = role
         };
 
         _db.Users.Add(user);
-
         await _db.SaveChangesAsync();
 
         return CreatedAtAction(nameof(Me), routeValues: null, value: new
         {
-            message = "Local user created. Remember to create the same user in Keycloak and assign the same role.",
+            message = "Lokal bruger oprettet. Husk at oprette samme bruger i Keycloak med samme email og rolle.",
             userId = user.Id
         });
     }
