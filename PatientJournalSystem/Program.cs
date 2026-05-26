@@ -173,7 +173,8 @@ app.UseSwaggerUI(c =>
     c.OAuthScopeSeparator(" ");
 });
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+    app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
