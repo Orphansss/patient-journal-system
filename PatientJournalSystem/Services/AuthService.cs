@@ -7,7 +7,7 @@ namespace PatientJournalSystem.Services;
 
 public class AuthService
 {
-    private const int MaxFailedLoginAttempts = 5;
+    private const int MaxFailedLoginAttempts = 10;
     private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
 
     private readonly AppDbContext _db;
