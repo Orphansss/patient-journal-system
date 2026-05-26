@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,17 +15,14 @@ public class ConsentController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly AuditService _audit;
+    private readonly CurrentUserService _currentUser;
 
-    public ConsentController(AppDbContext db, AuditService audit)
+    public ConsentController(AppDbContext db, AuditService audit, CurrentUserService currentUser)
     {
         _db = db;
         _audit = audit;
+        _currentUser = currentUser;
     }
-
-    private int GetCurrentUserId() =>
-        int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? User.FindFirstValue(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)
-            ?? "0");
 
     /// <summary>Patient grants a doctor access to their journals (GDPR explicit consent)</summary>
     [HttpPost("grant/{doctorId}")]
@@ -35,9 +31,15 @@ public class ConsentController : ControllerBase
     [ProducesResponseType(400)]
     public async Task<IActionResult> GrantConsent(int doctorId)
     {
-        var patientId = GetCurrentUserId();
+        var current = await GetCurrentUserId();
+
+        if (current.Error != null)
+            return current.Error;
+
+        var patientId = current.UserId;
 
         var doctor = await _db.Users.FindAsync(doctorId);
+
         if (doctor == null || doctor.Role != UserRole.Doctor)
             return BadRequest(new { message = "Doctor not found." });
 
@@ -73,7 +75,12 @@ public class ConsentController : ControllerBase
     [ProducesResponseType(404)]
     public async Task<IActionResult> RevokeConsent(int doctorId)
     {
-        var patientId = GetCurrentUserId();
+        var current = await GetCurrentUserId();
+
+        if (current.Error != null)
+            return current.Error;
+
+        var patientId = current.UserId;
 
         var consent = await _db.Consents
             .FirstOrDefaultAsync(c => c.PatientId == patientId && c.DoctorId == doctorId && c.IsGranted);
@@ -96,7 +103,12 @@ public class ConsentController : ControllerBase
     [ProducesResponseType(200)]
     public async Task<IActionResult> GetMyConsents()
     {
-        var patientId = GetCurrentUserId();
+        var current = await GetCurrentUserId();
+
+        if (current.Error != null)
+            return current.Error;
+
+        var patientId = current.UserId;
 
         var consents = await _db.Consents
             .Include(c => c.Doctor)
@@ -113,5 +125,17 @@ public class ConsentController : ControllerBase
             .ToListAsync();
 
         return Ok(consents);
+    }
+
+    private async Task<(int UserId, IActionResult? Error)> GetCurrentUserId()
+    {
+        try
+        {
+            return (await _currentUser.GetRequiredUserIdAsync(User), null);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return (0, Unauthorized(new { message = ex.Message }));
+        }
     }
 }
