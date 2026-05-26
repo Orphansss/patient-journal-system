@@ -1,106 +1,137 @@
 # Patient Journal System
 
-Eksamensprojekt for faget **Secure Software Development**.
+A web-based patient journal system built with security and privacy as core design principles from the ground up (Secure by Design).
 
-Et webbaseret patientjournalsystem bygget med sikkerhed og privacy som centrale designprincipper fra starten (Secure by Design).
+Exam project for **Secure Software Development** - PBSW (F2026), EASV.
 
-## Emner dækket
+## Security topics covered
 
-| Emne | Implementering |
+| Topic | Implementation |
 |---|---|
-| Trusselsmodellering | STRIDE-analyse + DFD (se `/docs`) |
+| Threat modeling | STRIDE analysis + DFD Layer 1 (see `/docs`) |
 | Secure by Design | Privacy by design, least privilege, fail-safe defaults |
-| Adgangskontrol (RBAC) | Roller: Læge, Patient, Sekretær, Admin |
-| Kryptering at-rest | AES-256-CBC på alle journalfelter i databasen |
-| Kryptering in-transit | HTTPS/TLS |
-| Autentifikation | JWT (lokalt) - Keycloak/OpenID Connect klar |
-| Consent-håndtering | GDPR Artikel 9 - patient godkender adgang |
-| Audit Log | NIS2 - hvem så hvad og hvornår |
-| OWASP Top 10 | Evalueret løbende (se `/docs`) |
-| Lovgivning | GDPR, NIS2, CRA |
+| Access control (RBAC) | Roles: Doctor, Patient, Secretary, Admin |
+| Encryption at-rest | AES-256-GCM on all journal fields in the database |
+| Encryption in-transit | HTTPS/TLS |
+| Authentication (SSO) | Keycloak via OpenID Connect / OAuth2 |
+| Consent management | GDPR Article 9 - patient grants and revokes access |
+| Audit log | NIS2 - who accessed what and when |
+| OWASP Top 10 | Evaluated throughout (see `/docs`) |
+| Legislation | GDPR, NIS2, CRA |
 
-## Kom i gang
+## Prerequisites
 
-### Krav
 - [.NET 8 SDK](https://dotnet.microsoft.com/download)
+- [Docker](https://www.docker.com/) (for Keycloak)
 
-### Start applikationen
+## Getting started
+
+### 1. Start Keycloak
+
+```bash
+docker-compose up -d
+```
+
+Keycloak runs at `http://localhost:8080`. The `patient-journal` realm is imported automatically.
+
+### 2. Set the encryption key
+
+The AES encryption key is never stored in source code or committed to Git. Set it using .NET User Secrets before running the project:
 
 ```bash
 cd PatientJournalSystem
+dotnet user-secrets set "Encryption:Key" "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+```
+
+The `UserSecretsId` in the `.csproj` file tells .NET where to look for secrets on your machine - each developer must run this command themselves. The key above is for local development only. See [Key management](#key-management) for production.
+
+### 3. Run the application
+
+```bash
 dotnet restore
 dotnet run
 ```
 
-Swagger UI åbner automatisk på: `http://localhost:5000`
+Swagger UI opens at `http://localhost:5000`.
 
-### Test-brugere (seedet automatisk)
+## Logging in
 
-| Rolle | Email | Password |
+Authentication is handled by Keycloak. Passwords are never stored in this application.
+
+### Keycloak test users (dev)
+
+| Role | Email | Password |
 |---|---|---|
-| Læge | doctor@klinik.dk | Doctor123! |
+| Doctor | doctor@klinik.dk | Doctor123! |
 | Patient | patient@example.dk | Patient123! |
-| Sekretær | secretary@klinik.dk | Secretary123! |
+| Secretary | secretary@klinik.dk | Secretary123! |
 | Admin | admin@klinik.dk | Admin123! |
 
-### Workflow i Swagger UI
+### Login flow in Swagger UI
 
-1. Kald `POST /api/auth/login` med en af test-brugerne
-2. Kopiér `token` fra svaret
-3. Klik **Authorize** øverst i Swagger UI
-4. Indtast: `Bearer <dit token>`
-5. Test endpoints - adgangskontrol håndhæves automatisk
+1. Go to `http://localhost:5000` and click **GET /api/auth/login** - this redirects to Keycloak
+2. Log in with one of the test users above
+3. Copy the `access_token` from the response
+4. Click **Authorize** at the top of Swagger UI
+5. Enter: `Bearer <your token>`
+6. All endpoints now enforce role-based access control automatically
 
-## Nøglehåndtering (vigtigt!)
+## Key management
 
-AES-krypteringsnøglen må **aldrig** ligge i kildekoden eller committes til Git.
+The AES-256-GCM encryption key must never be stored in source code or `appsettings.json`.
 
-**Lokalt (development):**
-Nøglen i `appsettings.Development.json` er kun til lokal udvikling.
+**Local development** - .NET User Secrets (stored outside the project on your machine, never hits Git):
 
-Generér en ny nøgle:
+```bash
+dotnet user-secrets set "Encryption:Key" "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+```
+
+Generate a fresh key:
+
 ```bash
 ./generate-dev-key.sh
 ```
 
-**Produktion:**
-Sæt nøglen som environment variable:
+**Production** - environment variable:
+
 ```bash
 export Encryption__Key="<base64-encoded-32-bytes>"
-export Jwt__Key="<min-32-chars>"
-dotnet run
 ```
 
-I en rigtig produktion: brug Azure Key Vault, HashiCorp Vault eller lignende.
+In a real production environment, use a dedicated secrets store such as Azure Key Vault or HashiCorp Vault.
 
-## Projektstruktur
+## Project structure
 
 ```
 PatientJournalSystem/
 ├── Controllers/
-│   ├── AuthController.cs       # Login, register
-│   ├── JournalController.cs    # CRUD med RBAC + kryptering
-│   ├── ConsentController.cs    # GDPR samtykke-håndtering
-│   └── AuditController.cs      # NIS2 audit log (Admin only)
+│   ├── AuthController.cs         # Keycloak OIDC login + callback
+│   ├── JournalController.cs      # CRUD with RBAC + encryption
+│   ├── ConsentController.cs      # GDPR consent management
+│   └── AuditController.cs        # NIS2 audit log (Admin only)
 ├── Models/
-│   ├── User.cs                 # Bruger med roller
-│   ├── Journal.cs              # Journal med krypterede felter
-│   ├── DoctorPatientConsent.cs # GDPR samtykke
-│   └── AuditLog.cs             # Audit trail
+│   ├── User.cs                   # User with roles (no passwords - Keycloak owns credentials)
+│   ├── Journal.cs                # Journal with AES-encrypted fields
+│   ├── DoctorPatientConsent.cs   # GDPR Article 9 consent
+│   └── AuditLog.cs               # Audit trail
 ├── Services/
-│   ├── EncryptionService.cs    # AES-256-CBC kryptering
-│   ├── TokenService.cs         # JWT udstedelse
-│   └── AuditService.cs         # Audit logging
+│   ├── EncryptionService.cs      # AES-256-GCM encryption
+│   ├── CurrentUserService.cs     # Resolves Keycloak JWT to local user
+│   └── AuditService.cs           # Audit logging
 ├── Data/
-│   ├── AppDbContext.cs          # Entity Framework / SQLite
-│   └── DatabaseSeeder.cs       # Test-data
-└── DTOs/                        # Request/Response objekter
+│   ├── AppDbContext.cs            # Entity Framework / SQLite
+│   └── DatabaseSeeder.cs         # Test data (journals seeded with encrypted data)
+└── DTOs/                          # Request/response objects
 ```
 
-## Næste skridt
+## How encryption works
 
-- [ ] Udskift lokal JWT med Keycloak (OpenID Connect)
-- [ ] STRIDE-diagram i `/docs`
-- [ ] DFD over systemet
-- [ ] Pentest (OWASP ZAP)
-- [ ] Supply chain: `dotnet list package --vulnerable`
+All sensitive journal fields (diagnosis, notes, medication) are encrypted with AES-256-GCM before being stored in the database. Opening the database directly only reveals ciphertext in the format:
+
+```
+nonce:authtag:ciphertext
+```
+
+GCM provides both confidentiality and integrity - if anyone tampers with the encrypted data directly in the database, decryption will fail and throw `AuthenticationTagMismatchException`.
+
+Each field gets a new cryptographically random nonce generated by `RandomNumberGenerator.Fill()` - never the insecure `Random` class.
