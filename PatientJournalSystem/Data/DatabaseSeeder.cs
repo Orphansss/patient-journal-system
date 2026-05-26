@@ -9,39 +9,37 @@ public static class DatabaseSeeder
     {
         if (context.Users.Any()) return;
 
+        // Ingen passwords her - credentials lever i Keycloak, ikke i vores database.
+        // Disse brugere skal også eksistere i Keycloak med samme email og rolle.
         var doctor = new User
         {
             FullName = "Dr. Anders Nielsen",
             Email = "doctor@klinik.dk",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Doctor123!"),
             Role = UserRole.Doctor
         };
         var patient = new User
         {
             FullName = "Peter Larsen",
             Email = "patient@example.dk",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Patient123!"),
             Role = UserRole.Patient
         };
         var secretary = new User
         {
             FullName = "Mette Sørensen",
             Email = "secretary@klinik.dk",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Secretary123!"),
             Role = UserRole.Secretary
         };
         var admin = new User
         {
             FullName = "System Admin",
             Email = "admin@klinik.dk",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin123!"),
             Role = UserRole.Admin
         };
 
         context.Users.AddRange(doctor, patient, secretary, admin);
         context.SaveChanges();
 
-        // Consent: patient grants doctor access
+        // Patient giver lægen aktivt samtykke - krav i GDPR artikel 9
         context.Consents.Add(new DoctorPatientConsent
         {
             PatientId = patient.Id,
@@ -49,7 +47,7 @@ public static class DatabaseSeeder
             IsGranted = true
         });
 
-        // Seed a journal with encrypted data
+        // Seed-journal krypteres med AES-256-GCM - databasen indeholder aldrig klartekst
         context.Journals.Add(new Journal
         {
             PatientId = patient.Id,
