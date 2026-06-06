@@ -15,11 +15,9 @@ Et webbaseret patientjournalsystem til en lægeklinik. Sundhedsdata er en særli
 
 ## STRIDE-analyse
 
-*Udfyldes af Tobias*
-
 ### S - Spoofing (Identitetsforfalskning)
 - **Trussel:** En angriber udgiver sig for at være en legitim bruger
-- **Modforanstaltning:** JWT-tokens med signatur, Bcrypt password hashing, rate limiting på login
+- **Modforanstaltning:** Keycloak account locking, JWT-tokens med signatur, rate limiting på login
 
 ### T - Tampering (Manipulation)
 - **Trussel:** Manipulation af journaldata undervejs eller i databasen
@@ -51,7 +49,7 @@ Et webbaseret patientjournalsystem til en lægeklinik. Sundhedsdata er en særli
 | A04 | Insecure Design | Implementeret | Threat model, secure by design fra start |
 | A05 | Security Misconfiguration | Delvist | Swagger kun i dev, secrets i env vars |
 | A06 | Vulnerable Components | Tjekkes | `dotnet list package --vulnerable` |
-| A07 | Auth/Session Failures | Implementeret | JWT med expiry, Bcrypt passwords |
+| A07 | Auth/Session Failures | Implementeret | Keycloak med OIDC, account locking mod brute force |
 | A08 | Software/Data Integrity | Delvist | Pakker via NuGet (signerede) |
 | A09 | Logging/Monitoring Failures | Implementeret | AuditLog tabel, NIS2-krav |
 | A10 | SSRF | N/A | Ingen udgående HTTP-kald |
